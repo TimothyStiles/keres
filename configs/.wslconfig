@@ -1,0 +1,5 @@
+[wsl2]
+kernel=C:\\Users\\<insertusernamehere>\\bzImage
+networkingMode=bridged
+vmSwitch=lan
+swap=0
