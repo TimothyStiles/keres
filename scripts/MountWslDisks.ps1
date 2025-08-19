@@ -32,7 +32,7 @@ if ($null -eq $taskExists) {
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal
 } else {
-    # Log to console if it doesn't exist
+    # Log to console if it already exists
     Write-Host "Scheduled task '$taskName' already exists. Skipping creation."
 }
 

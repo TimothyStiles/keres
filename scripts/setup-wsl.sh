@@ -15,7 +15,7 @@ echo "WSLCONFIG_PATH: $WSLCONFIG_PATH"
 
 # Generate a unique MAC address and add to .wslconfig
 echo "Generating unique MAC address for WSL2..."
-MAC_ADDR=$(bash "$SCRIPT_DIR/generate_mac.sh" | grep "Generated MAC:" | awk '{print $3}' | tail -n1)
+MAC_ADDR=$(bash "$SCRIPT_DIR/generate-mac.sh" | grep "Generated MAC:" | awk '{print $3}' | tail -n1)
 echo "Generated MAC: $MAC_ADDR"
 
 echo "Running sed to update .wslconfig kernel path with actual Windows username..."
