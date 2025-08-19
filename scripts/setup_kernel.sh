@@ -4,7 +4,7 @@ WIN_USER=$(powershell.exe '$env:USERNAME' | tr -d '\r')
 echo "Windows username: $WIN_USER"
 
 # Update .wslconfig kernel path with actual Windows username
-sed -i "s|<insertusernamehere>|$WIN_USER|g" "$(dirname "$0")/../../configs/.wslconfig"
+sed -i "s|<insertusernamehere>|$WIN_USER|g" "$(dirname "$0")/../configs/.wslconfig"
 
 # Copy .wslconfig to Windows user profile directory
 cp "$(dirname "$0")/../configs/.wslconfig" "/mnt/c/Users/$WIN_USER/.wslconfig"
