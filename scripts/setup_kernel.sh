@@ -27,11 +27,9 @@ else
     exit 1
 fi
 
-# Ensure git is installed
-if ! command -v git &> /dev/null; then
-	echo "git not found, installing..."
-	sudo apt-get update && sudo apt-get install -y git
-fi
+# Install required build dependencies
+echo "Installing required build dependencies..."
+sudo apt-get update && sudo apt-get install -y build-essential flex bison libssl-dev libelf-dev libncurses5-dev git bc pahole
 
 PROJECT_ROOT="$SCRIPT_DIR/.."
 
@@ -45,24 +43,7 @@ else
 fi
 cd WSL2-Linux-Kernel
 
-# Ensure make is installed
-if ! command -v make &> /dev/null; then
-	echo "make not found, installing..."
-	sudo apt-get update && sudo apt-get install -y build-essential
-fi
-
-# Ensure flex is installed
-if ! command -v flex &> /dev/null; then
-    echo "flex not found, installing..."
-    sudo apt-get update && sudo apt-get install -y flex
-fi
-
-# Ensure bison is installed
-if ! command -v bison &> /dev/null; then
-    echo "bison not found, installing..."
-    sudo apt-get update && sudo apt-get install -y bison
-fi
-
+# Copying custom kernel config...
 echo "Copying custom kernel config..."
 cp "$CONFIG_PATH" .config
 
