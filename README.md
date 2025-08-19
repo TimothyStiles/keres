@@ -40,6 +40,11 @@ If you haven't already install hyper-v. Open it up. On the top bar there will be
 
 You can also do this with powershell while running as administrator
 
+If you haven't enabled hyper-v already, enable it, it may ask you to restart to enable:
+
+```
+Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
+```
 
 If you don't know your NetAdapterName
 ```
