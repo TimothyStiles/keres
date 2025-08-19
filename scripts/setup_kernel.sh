@@ -33,21 +33,34 @@ if ! command -v git &> /dev/null; then
 	sudo apt-get update && sudo apt-get install -y git
 fi
 
-# Clone WSL2 kernel repository
+PROJECT_ROOT="$SCRIPT_DIR/.."
+
+# Clone WSL2 kernel repository in project root
+cd "$PROJECT_ROOT"
+echo "Cloning the WSL2 kernel repository. This may take a while..."
 if [ -d "WSL2-Linux-Kernel" ]; then
     echo "WSL2-Linux-Kernel directory already exists. Skipping clone."
 else
-	echo "Cloning the WSL2 kernel repository. This may take a while..."
     git clone --single-branch --depth 1 https://github.com/microsoft/WSL2-Linux-Kernel.git
 fi
-
-# Enter the kernel repo
 cd WSL2-Linux-Kernel
 
 # Ensure make is installed
 if ! command -v make &> /dev/null; then
 	echo "make not found, installing..."
 	sudo apt-get update && sudo apt-get install -y build-essential
+fi
+
+# Ensure flex is installed
+if ! command -v flex &> /dev/null; then
+    echo "flex not found, installing..."
+    sudo apt-get update && sudo apt-get install -y flex
+fi
+
+# Ensure bison is installed
+if ! command -v bison &> /dev/null; then
+    echo "bison not found, installing..."
+    sudo apt-get update && sudo apt-get install -y bison
 fi
 
 echo "Copying custom kernel config..."
