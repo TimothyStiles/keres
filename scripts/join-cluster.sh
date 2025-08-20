@@ -187,12 +187,34 @@ else
 fi
 
 
+
 # Ensure /var/lib/longhorn exists
 sudo mkdir -p /var/lib/longhorn
-# Bind mount /var/lib/longhorn to itself (required for mount propagation)
+# Add persistent bind mount to /etc/fstab if missing
+if ! grep -q '^/var/lib/longhorn /var/lib/longhorn none bind' /etc/fstab; then
+	echo '/var/lib/longhorn /var/lib/longhorn none bind 0 0' | sudo tee -a /etc/fstab
+fi
+# Bind mount and make shared for current session
 sudo mount --bind /var/lib/longhorn /var/lib/longhorn
-# Make /var/lib/longhorn a shared mount
 sudo mount --make-shared /var/lib/longhorn
 echo "/var/lib/longhorn is now a shared mount for Longhorn compatibility."
+
+# Create systemd unit to make /var/lib/longhorn shared on every boot
+cat <<'EOF' | sudo tee /etc/systemd/system/longhorn-shared-mount.service
+[Unit]
+Description=Make /var/lib/longhorn a shared mount for Longhorn
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mount --make-shared /var/lib/longhorn
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable longhorn-shared-mount.service
 
 sudo systemctl restart kubelet
