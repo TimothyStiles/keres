@@ -47,7 +47,7 @@ sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
 
 # Update apt package index, then install kubectl, kubeadm, and kubelet version 1.31.11
 sudo apt-get update
-sudo apt-get install -y kubelet=1.31.11-1.1 kubeadm=1.31.11-1.1 kubectl=1.31.11-1.1 containerd
+sudo apt-get install -y kubelet=1.31.11-1.1 kubeadm=1.31.11-1.1 kubectl=1.31.11-1.1 containerd open-iscsi
 sudo apt-mark hold kubelet kubeadm kubectl
 
 
