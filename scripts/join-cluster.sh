@@ -54,9 +54,21 @@ fi
 
 # Create a kubeadm bootstrap token and extract the token value
 JOIN_CMD=$(kubeadm token create --print-join-command 2>/dev/null)
+echo "$JOIN_CMD"
 BOOTSTRAP_TOKEN=$(echo "$JOIN_CMD" | awk -F'--token ' '{print $2}' | awk '{print $1}')
 echo "Bootstrap token: $BOOTSTRAP_TOKEN"
 
+# check if bootstrap token is valid
+if kubeadm token list | awk '{print $1}' | grep -q "^${BOOTSTRAP_TOKEN}$"; then
+	echo "Bootstrap token is valid."
+else
+	echo "Error: Bootstrap token $BOOTSTRAP_TOKEN is not valid or has expired."
+	exit 1
+fi
+
+# Create necessary RBAC roles and bindings for bootstrapping
+kubectl create clusterrole system:certificates.k8s.io:certificatesigningrequestnodes --verb=create,get,list,watch,approve --resource=certificatesigningrequests.certificates.k8s.io
+kubectl create clusterrolebinding kubeadm:kubelet-bootstrap --clusterrole=system:certificates.k8s.io:certificatesigningrequestnodes --group=system:bootstrappers
 
 # Copying /etc/kubernetes from control plane node $CONTROL_PLANE_IP into a temporary directory
 echo "Copying /etc/kubernetes from control plane node $CONTROL_PLANE_IP..."
@@ -90,48 +102,38 @@ sudo sed -i '/^ *kubelet:/a \\ \ \\serverTLSBootstrap: true' /etc/kubernetes/kub
 echo "serverTLSBootstrap: true added to /etc/kubernetes/kubelet.yaml."
 
 sudo sed -i "s|token: .*|token: $BOOTSTRAP_TOKEN|" /etc/kubernetes/bootstrap-kubeconfig
-sudo sed -i "/server:/ s|:.*|: https://${VIP}:6443|g" \
-  /etc/kubernetes/kubelet.conf \
-  /etc/kubernetes/bootstrap-kubelet.conf
 
-# Retrieve clusterDomain and clusterDNS from kubeletconfig using control plane IP
-clusterDomain=$(talosctl -n "$CONTROL_PLANE_IP" get kubeletconfig -o jsonpath="{.spec.clusterDomain}")
-clusterDNS=$(talosctl -n "$CONTROL_PLANE_IP" get kubeletconfig -o jsonpath="{.spec.clusterDNS}")
-echo "clusterDomain: $clusterDomain"
-echo "clusterDNS: $clusterDNS"
+# Update or create server addresses in /etc/kubernetes/kubelet.yaml and /etc/kubernetes/bootstrap-kubeconfig
+for f in /etc/kubernetes/kubelet.yaml /etc/kubernetes/bootstrap-kubeconfig; do
+	if sudo grep -q "^ *server:" "$f"; then
+		sudo sed -i "/^ *server:/ s|:.*|: https://${CONTROL_PLANE_IP}:6443|" "$f"
+	else
+		sudo echo "server: https://${CONTROL_PLANE_IP}:6443" | sudo tee -a "$f"
+	fi
+done
 
+# Check for kubelet config and handle creation/overwrite
+KUBELET_CONF_DIR="/etc/systemd/system/kubelet.service.d"
+KUBELET_CONF_FILE="$KUBELET_CONF_DIR/10-kubeadm.conf"
 
-cat > /var/lib/kubelet/config.yaml <<EOT
-kind: KubeletConfiguration
-apiVersion: kubelet.config.k8s.io/v1beta1
-authentication:
-  anonymous:
-    enabled: false
-  webhook:
-    enabled: true
-  x509:
-    clientCAFile: /etc/kubernetes/pki/ca.crt
-authorization:
-  mode: Webhook
-clusterDomain: "$clusterDomain"
-clusterDNS: $clusterDNS
-runtimeRequestTimeout: "0s"
-cgroupDriver: systemd # uhhhh might want to update this for anything else
-EOT
-
-# check to see if var/lib/kubelet/config.yaml exists
-if [[ -f /var/lib/kubelet/config.yaml ]]; then
-  echo "/var/lib/kubelet/config.yaml exists."
-else
-  echo "/var/lib/kubelet/config.yaml does not exist."
+if [ ! -d "$KUBELET_CONF_DIR" ]; then
+	echo "Directory $KUBELET_CONF_DIR does not exist. Creating it..."
+	sudo mkdir -p "$KUBELET_CONF_DIR"
 fi
+
+if [ -f "$KUBELET_CONF_FILE" ]; then
+	echo "Warning: $KUBELET_CONF_FILE already exists and will be overwritten."
+else
+	echo "$KUBELET_CONF_FILE does not exist. It will be created."
+fi
+
 
 # Write kubelet drop-in config to /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 sudo tee /etc/systemd/system/kubelet.service.d/10-kubeadm.conf > /dev/null <<'EOF'
 # /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 # Note: This dropin only works with kubeadm and kubelet v1.11+
 [Service]
-Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubeconfig --kubeconfig=/etc/kubernetes/kubeconfig-kubelet --container-runtime=remote --container-runtime-endpoint=unix:///var/run/crio/crio.sock --runtime-request-timeout=10m --cgroup-driver=systemd"
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubeconfig --kubeconfig=/etc/kubernetes/kubeconfig-kubelet --cgroup-driver=systemd"
 Environment="KUBELET_CONFIG_ARGS=--config=/etc/kubernetes/kubelet.yaml"
 # This is a file that "kubeadm init" and "kubeadm join" generates at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
 #EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
@@ -143,5 +145,30 @@ ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELE
 
 EOF
 
+
+
+# Ensure vm.overcommit_memory=1 is set in /etc/sysctl.conf
+if ! grep -q '^vm\.overcommit_memory=1' /etc/sysctl.conf; then
+	if grep -q '^vm\.overcommit_memory=' /etc/sysctl.conf; then
+		sudo sed -i 's/^vm\.overcommit_memory=.*/vm.overcommit_memory=1/' /etc/sysctl.conf
+	else
+		echo "vm.overcommit_memory=1" | sudo tee -a /etc/sysctl.conf
+	fi
+fi
+
+# Ensure kernel.panic=10 is set in /etc/sysctl.conf
+if ! grep -q '^kernel\.panic=10' /etc/sysctl.conf; then
+	if grep -q '^kernel\.panic=' /etc/sysctl.conf; then
+		sudo sed -i 's/^kernel\.panic=.*/kernel.panic=10/' /etc/sysctl.conf
+	else
+		echo "kernel.panic=10" | sudo tee -a /etc/sysctl.conf
+	fi
+fi
+sudo sysctl -p
 ## reload system to see if changes take effect
-systemctl daemon-reload
+sudo systemctl enable --now containerd
+sudo systemctl restart kubelet
+sudo systemctl daemon-reload
+
+TOKEN_ID=$(echo "$BOOTSTRAP_TOKEN" | cut -c1-6)
+kubectl get csr --no-headers | awk "/system:bootstrap:$TOKEN_ID/"'{print $1}' | xargs -r kubectl certificate approve

@@ -36,8 +36,8 @@ if ! grep -q 'brew shellenv' ~/.bashrc; then
 fi
 
 
-brew install siderolabs/tap/talosctl@1.10.5
-brew link --overwrite siderolabs/tap/talosctl@1.10.5
+brew install siderolabs/tap/talosctl
+brew link --overwrite siderolabs/tap/talosctl
 TALOSCTL_VERSION=$(talosctl version --short 2>/dev/null | head -n1)
 
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
@@ -47,7 +47,7 @@ sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
 
 # Update apt package index, then install kubectl, kubeadm, and kubelet version 1.31.11
 sudo apt-get update
-sudo apt-get install -y kubelet=1.31.11-1.1 kubeadm=1.31.11-1.1 kubectl=1.31.11-1.1
+sudo apt-get install -y kubelet=1.31.11-1.1 kubeadm=1.31.11-1.1 kubectl=1.31.11-1.1 containerd
 sudo apt-mark hold kubelet kubeadm kubectl
 
 
