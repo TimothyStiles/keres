@@ -172,3 +172,27 @@ sudo systemctl daemon-reload
 
 TOKEN_ID=$(echo "$BOOTSTRAP_TOKEN" | cut -c1-6)
 kubectl get csr --no-headers | awk "/system:bootstrap:$TOKEN_ID/"'{print $1}' | xargs -r kubectl certificate approve
+
+# Check for control-plane taint and remove if present (at script end)
+NODE_NAME=$(kubectl get node --selector="kubernetes.io/hostname=$(hostname)" -o jsonpath='{.items[0].metadata.name}')
+if [ -z "$NODE_NAME" ]; then
+	NODE_NAME=$(hostname)
+fi
+TAINT_PRESENT=$(kubectl get node "$NODE_NAME" -o jsonpath='{.spec.taints}' | grep 'node-role.kubernetes.io/control-plane')
+if [ -n "$TAINT_PRESENT" ]; then
+	echo "Node $NODE_NAME has the control-plane NoSchedule taint. Removing it so Longhorn and other pods can be scheduled."
+	kubectl taint node "$NODE_NAME" node-role.kubernetes.io/control-plane:NoSchedule-
+else
+	echo "Node $NODE_NAME does not have the control-plane NoSchedule taint."
+fi
+
+
+# Ensure /var/lib/longhorn exists
+sudo mkdir -p /var/lib/longhorn
+# Bind mount /var/lib/longhorn to itself (required for mount propagation)
+sudo mount --bind /var/lib/longhorn /var/lib/longhorn
+# Make /var/lib/longhorn a shared mount
+sudo mount --make-shared /var/lib/longhorn
+echo "/var/lib/longhorn is now a shared mount for Longhorn compatibility."
+
+sudo systemctl restart kubelet
