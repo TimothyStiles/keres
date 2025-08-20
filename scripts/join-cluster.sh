@@ -214,7 +214,7 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
 sudo systemctl enable longhorn-shared-mount.service
+sudo systemctl daemon-reload
 
 sudo systemctl restart kubelet
